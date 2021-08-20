@@ -14,7 +14,12 @@ from app.authentication.no_questionnaire_state_exception import (
     NoQuestionnaireStateException,
 )
 from app.data_models import QuestionnaireStore
-from app.globals import get_metadata, get_session_store, get_session_timeout_in_seconds
+from app.globals import (
+    get_metadata,
+    get_questionnaire_store,
+    get_session_store,
+    get_session_timeout_in_seconds,
+)
 from app.helpers import url_safe_serializer
 from app.helpers.language_helper import handle_language
 from app.helpers.schema_helpers import with_schema
@@ -37,6 +42,11 @@ from app.views.handlers.section import SectionHandler
 from app.views.handlers.submission import SubmissionHandler
 from app.views.handlers.submit_questionnaire import SubmitQuestionnaireHandler
 from app.views.handlers.thank_you import ThankYou
+from app.views.handlers.view_submitted_response import (
+    ViewSubmittedResponse,
+    ViewSubmittedResponseExpired,
+    ViewSubmittedResponseNotEnabled,
+)
 
 logger = get_logger()
 
@@ -58,6 +68,13 @@ def before_questionnaire_request():
     metadata = get_metadata(current_user)
     if not metadata:
         raise NoQuestionnaireStateException(401)
+
+    questionnaire_store = get_questionnaire_store(
+        current_user.user_id, current_user.user_ik
+    )
+
+    if questionnaire_store.submitted_at:
+        return redirect(url_for("post_submission.get_thank_you"))
 
     logger.bind(
         tx_id=metadata["tx_id"],
@@ -81,12 +98,21 @@ def before_post_submission_request():
     if request.method == "OPTIONS":
         return None
 
-    session_store = get_session_store()
-    session_data = session_store.session_data
-    if not session_data.submitted_time:
+    metadata = get_metadata(current_user)
+    if not metadata:
+        raise NoQuestionnaireStateException(401)
+
+    questionnaire_store = get_questionnaire_store(
+        current_user.user_id, current_user.user_ik
+    )
+
+    if not questionnaire_store.submitted_at:
         raise NotFound
 
     handle_language()
+
+    session_store = get_session_store()
+    session_data = session_store.session_data
 
     g.schema = load_schema_from_session_data(session_data)
 
@@ -309,10 +335,11 @@ def relationships(
 
 
 @post_submission_blueprint.route("thank-you/", methods=["GET", "POST"])
+@with_questionnaire_store
 @with_session_store
 @with_schema
-def get_thank_you(schema, session_store):
-    thank_you = ThankYou(schema, session_store)
+def get_thank_you(schema, session_store, questionnaire_store):
+    thank_you = ThankYou(schema, session_store, questionnaire_store.submitted_at)
 
     if request.method == "POST":
         confirmation_email = thank_you.confirmation_email
@@ -344,6 +371,27 @@ def get_thank_you(schema, session_store):
         },
         survey_id=schema.json["survey_id"],
         page_title=thank_you.get_page_title(),
+    )
+
+
+@post_submission_blueprint.route("view-response/", methods=["GET"])
+@with_questionnaire_store
+@with_schema
+def get_view_submitted_response(schema, questionnaire_store):
+    try:
+        view_submitted_response = ViewSubmittedResponse(
+            schema,
+            questionnaire_store,
+            flask_babel.get_locale().language,
+        )
+
+    except (ViewSubmittedResponseNotEnabled, ViewSubmittedResponseExpired):
+        raise NotFound
+
+    return render_template(
+        template="view-submitted-response",
+        content=view_submitted_response.get_context(),
+        page_title=view_submitted_response.get_page_title(),
     )
 
 
