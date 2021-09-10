@@ -4,9 +4,9 @@
     "schema_version": "0.0.1",
     "data_version": "0.0.3",
     "survey_id": "001",
-    "title": "Test Routing Number Equals",
+    "title": "Test Routing Date Greater Than Or Equals",
     "theme": "default",
-    "description": "A test survey for routing based on a number equals",
+    "description": "A test survey for routing based on a date greater than or equals",
     "metadata": [
         {
             "name": "user_id",
@@ -19,6 +19,10 @@
         {
             "name": "ru_name",
             "type": "string"
+        },
+        {
+            "name": "return_by",
+            "type": "date"
         }
     ],
     "questionnaire_flow": {
@@ -37,30 +41,30 @@
                     "blocks": [
                         {
                             "type": "Question",
-                            "id": "number-question",
+                            "id": "date-question",
                             "question": {
                                 "answers": [
                                     {
-                                        "id": "answer",
+                                        "id": "single-date-answer",
                                         "mandatory": true,
-                                        "type": "Number",
-                                        "label": "Enter 123"
+                                        "type": "YearDate"
                                     }
                                 ],
-                                "id": "question",
-                                "title": "Enter the number 123",
+                                "id": "date-questions",
+                                "title": "Enter a year greater than or equals to 2018",
                                 "type": "General"
                             },
                             "routing_rules": [
                                 {
                                     "block": "correct-answer",
                                     "when": {
-                                        "==": [
+                                        ">=": [
                                             {
-                                                "source": "answers",
-                                                "identifier": "answer"
+                                                "date": [{ "source": "answers", "identifier": "single-date-answer" }]
                                             },
-                                            123
+                                            {
+                                                "date": ["2018"]
+                                            }
                                         ]
                                     }
                                 },
@@ -73,18 +77,26 @@
                             "type": "Interstitial",
                             "id": "incorrect-answer",
                             "content": {
-                                "title": "You did not enter 123",
+                                "title": "Incorrect answer",
                                 "contents": [
                                     {
                                         "description": {
-                                            "text": "You were asked to enter <em>123</em> but you actually entered <em>{answer}</em>.",
+                                            "text": "You entered a return date earlier than {date}",
                                             "placeholders": [
                                                 {
-                                                    "placeholder": "answer",
-                                                    "value": {
-                                                        "source": "answers",
-                                                        "identifier": "answer"
-                                                    }
+                                                    "placeholder": "date",
+                                                    "transforms": [
+                                                        {
+                                                            "transform": "format_date",
+                                                            "arguments": {
+                                                                "date_to_format": {
+                                                                    "source": "metadata",
+                                                                    "identifier": "return_by"
+                                                                },
+                                                                "date_format": "d MMMM yyyy"
+                                                            }
+                                                        }
+                                                    ]
                                                 }
                                             ]
                                         }
@@ -101,18 +113,26 @@
                             "type": "Interstitial",
                             "id": "correct-answer",
                             "content": {
-                                "title": "Correct",
+                                "title": "Correct answer",
                                 "contents": [
                                     {
                                         "description": {
-                                            "text": "You were asked to enter <em>123</em> and you entered <em>{answer}</em>.",
+                                            "text": "You entered a return date later than {date}",
                                             "placeholders": [
                                                 {
-                                                    "placeholder": "answer",
-                                                    "value": {
-                                                        "source": "answers",
-                                                        "identifier": "answer"
-                                                    }
+                                                    "placeholder": "date",
+                                                    "transforms": [
+                                                        {
+                                                            "transform": "format_date",
+                                                            "arguments": {
+                                                                "date_to_format": {
+                                                                    "source": "metadata",
+                                                                    "identifier": "return_by"
+                                                                },
+                                                                "date_format": "d MMMM yyyy"
+                                                            }
+                                                        }
+                                                    ]
                                                 }
                                             ]
                                         }
