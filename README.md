@@ -393,4 +393,4 @@ To add a new dependency, use `pipenv install [package-name]`, which not only ins
 
 NB: both the Pipfile and Pipfile.lock files are required in source control to accurately pin dependencies.
 
-Update 1: Tue 14 Sept 09:39
+Update 2: Tue 14 Sept 10:27
