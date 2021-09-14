@@ -392,3 +392,5 @@ Refer to our [profiling document](doc/profiling.md).
 To add a new dependency, use `pipenv install [package-name]`, which not only installs the package but Pipenv will also go to the trouble of updating the Pipfile as well.
 
 NB: both the Pipfile and Pipfile.lock files are required in source control to accurately pin dependencies.
+
+Update 1: Tue 14 Sept 09:39
