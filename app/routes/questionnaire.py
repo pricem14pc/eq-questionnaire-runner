@@ -44,7 +44,6 @@ from app.views.handlers.submit_questionnaire import SubmitQuestionnaireHandler
 from app.views.handlers.thank_you import ThankYou
 from app.views.handlers.view_submitted_response import (
     ViewSubmittedResponse,
-    ViewSubmittedResponseExpired,
     ViewSubmittedResponseNotEnabled,
 )
 
@@ -385,7 +384,7 @@ def get_view_submitted_response(schema, questionnaire_store):
             flask_babel.get_locale().language,
         )
 
-    except (ViewSubmittedResponseNotEnabled, ViewSubmittedResponseExpired):
+    except ViewSubmittedResponseNotEnabled:
         raise NotFound
 
     return render_template(
@@ -429,12 +428,17 @@ def send_confirmation_email(session_store, schema):
 
 
 @post_submission_blueprint.route("confirmation-email/confirm", methods=["GET", "POST"])
+@with_questionnaire_store
 @with_schema
 @with_session_store
-def confirm_confirmation_email(session_store, schema):
+def confirm_confirmation_email(session_store, schema, questionnaire_store):
     try:
         confirm_email = ConfirmEmail(
-            schema, session_store, request.args["email"], form_data=request.form
+            questionnaire_store,
+            schema,
+            session_store,
+            request.args["email"],
+            form_data=request.form,
         )
     except (ConfirmationEmailLimitReached, ConfirmationEmailNotEnabled):
         return redirect(url_for(".get_thank_you"))
@@ -486,11 +490,14 @@ def get_confirmation_email_sent(session_store, schema):
 
 
 @post_submission_blueprint.route("feedback/send", methods=["GET", "POST"])
+@with_questionnaire_store
 @with_session_store
 @with_schema
-def send_feedback(schema, session_store):
+def send_feedback(schema, session_store, questionnaire_store):
     try:
-        feedback = Feedback(schema, session_store, form_data=request.form)
+        feedback = Feedback(
+            questionnaire_store, schema, session_store, form_data=request.form
+        )
     except FeedbackNotEnabled:
         raise NotFound
 
