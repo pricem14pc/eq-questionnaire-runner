@@ -1,4 +1,5 @@
 import unittest
+from decimal import Decimal
 
 from app.questionnaire.placeholder_transforms import PlaceholderTransforms
 
@@ -118,8 +119,11 @@ class TestPlaceholderParser(unittest.TestCase):
             == "Milk, Eggs, Flour, Water"
         )
 
-    def test_add(self):
-        assert self.transforms.add(1, 2) == 3
+    def test_add_int(self):
+        assert self.transforms.add(int(1), int(2)) == int(3)
+
+    def test_add_decimal(self):
+        assert self.transforms.add(Decimal("1.11"), Decimal("2.22")) == Decimal("3.33")
 
     def test_format_ordinal_with_determiner(self):
         assert self.transforms.format_ordinal(1, "a_or_an") == "a 1st"
@@ -245,6 +249,7 @@ class TestPlaceholderParser(unittest.TestCase):
         )
 
     def test_email_link_with_subject_and_reference(self):
+
         assert (
             self.transforms.email_link("test@email.com", "test subject", "12345")
             == '<a href="mailto:test@email.com?subject=test%20subject%2012345">test@email.com</a>'
@@ -256,3 +261,14 @@ class TestPlaceholderParser(unittest.TestCase):
             self.transforms.telephone_number_link("012345 67890")
             == '<a href="tel:01234567890">012345 67890</a>'
         )
+
+    def test_list_item_count(self):
+
+        assert (
+            self.transforms.list_item_count(
+                ["Alice Aardvark", "Bob Berty Brown", "Dave Dixon Davies"]
+            )
+            == 3
+        )
+        assert self.transforms.list_item_count([]) == 0
+        assert self.transforms.list_item_count(None) == 0
