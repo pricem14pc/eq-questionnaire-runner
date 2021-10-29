@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from google.cloud import storage  # type: ignore
 from pika import BasicProperties, BlockingConnection, URLParameters
-from pika.exceptions import AMQPError
+from pika.exceptions import AMQPError, NackError, UnroutableError
 from structlog import get_logger
 
 from app.utilities.json import json_dumps
@@ -43,19 +43,13 @@ class RabbitMQSubmitter:
     def __init__(self, host, secondary_host, port, queue, username=None, password=None):
         self.queue = queue
         if username and password:
-            self.rabbitmq_url = "amqp://{username}:{password}@{host}:{port}/%2F".format(
-                username=username, password=password, host=host, port=port
-            )
+            self.rabbitmq_url = f"amqp://{username}:{password}@{host}:{port}/%2F"
             self.rabbitmq_secondary_url = (
-                "amqp://{username}:{password}@{host}:{port}/%2F".format(
-                    username=username, password=password, host=secondary_host, port=port
-                )
+                f"amqp://{username}:{password}@{secondary_host}:{port}/%2F"
             )
         else:
-            self.rabbitmq_url = "amqp://{host}:{port}/%2F".format(host=host, port=port)
-            self.rabbitmq_secondary_url = "amqp://{host}:{port}/%2F".format(
-                host=secondary_host, port=port
-            )
+            self.rabbitmq_url = f"amqp://{host}:{port}/%2F"
+            self.rabbitmq_secondary_url = f"amqp://{secondary_host}:{port}/%2F"
 
     def _connect(self):
         try:
@@ -117,24 +111,24 @@ class RabbitMQSubmitter:
             properties.headers["tx_id"] = tx_id
             properties.headers["case_id"] = case_id
 
-            published = channel.basic_publish(
+            channel.basic_publish(
                 exchange="",
                 routing_key=self.queue,
                 body=message_as_string,
                 mandatory=True,
                 properties=properties,
             )
-            if published:
-                logger.info("sent message", category="rabbitmq")
-            else:
-                logger.error("unable to send message", category="rabbitmq")
-            return published
-        except AMQPError as e:
+
+            logger.info("sent message", category="rabbitmq")
+
+        except (AMQPError, NackError, UnroutableError) as e:
             logger.error("unable to send message", exc_info=e, category="rabbitmq")
             return False
         finally:
             if connection:
                 self._disconnect(connection)
+
+        return True
 
 
 class GCSFeedbackSubmitter:

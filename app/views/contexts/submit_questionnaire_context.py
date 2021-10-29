@@ -8,7 +8,6 @@ from .summary_context import SummaryContext
 
 class SubmitQuestionnaireContext(Context):
     def __call__(self) -> dict[str, Union[str, dict]]:
-
         submission_schema: Mapping = self._schema.get_submission()
 
         title = submission_schema.get("title") or lazy_gettext(
@@ -39,6 +38,7 @@ class SubmitQuestionnaireContext(Context):
                 list_store=self._list_store,
                 progress_store=self._progress_store,
                 metadata=self._metadata,
+                response_metadata=self._response_metadata,
             )
             context["summary"] = summary_context(
                 answers_are_editable=True, return_to="final-summary"

@@ -2,7 +2,7 @@ import uuid
 from unittest import TestCase
 
 from mock import Mock, call, patch
-from pika.exceptions import AMQPError
+from pika.exceptions import AMQPError, NackError
 
 from app.submitter import GCSFeedbackSubmitter, GCSSubmitter, RabbitMQSubmitter
 
@@ -66,8 +66,8 @@ class TestRabbitMQSubmitter(TestCase):
             self.assertTrue(published, "send_message should publish message")
             # Check we create url for primary then secondary
             url_parameters_calls = [
-                call("amqp://{}:{}/%2F".format(self.host1, self.port)),
-                call("amqp://{}:{}/%2F".format(self.host2, self.port)),
+                call(f"amqp://{self.host1}:{self.port}/%2F"),
+                call(f"amqp://{self.host2}:{self.port}/%2F"),
             ]
             url_parameters.assert_has_calls(url_parameters_calls)
             # Check we create connection twice, failing first then with self.url2
@@ -104,16 +104,8 @@ class TestRabbitMQSubmitter(TestCase):
             self.assertTrue(published, "send_message should publish message")
             # Check we create url for primary then secondary
             url_parameters_calls = [
-                call(
-                    "amqp://{}:{}@{}:{}/%2F".format(
-                        username, password, self.host1, self.port
-                    )
-                ),
-                call(
-                    "amqp://{}:{}@{}:{}/%2F".format(
-                        username, password, self.host2, self.port
-                    )
-                ),
+                call(f"amqp://{username}:{password}@{self.host1}:{self.port}/%2F"),
+                call(f"amqp://{username}:{password}@{self.host2}:{self.port}/%2F"),
             ]
             url_parameters.assert_has_calls(url_parameters_calls)
             # Check we create connection twice, failing first then with self.url2
@@ -144,7 +136,9 @@ class TestRabbitMQSubmitter(TestCase):
     def test_when_fail_to_publish_message_then_returns_false(self):
         # Given
         channel = Mock()
-        channel.basic_publish = Mock(return_value=False)
+        channel.basic_publish = Mock(
+            side_effect=NackError("Mock exception for basic_publish")
+        )
         connection = Mock()
         connection.channel.side_effect = Mock(return_value=channel)
         with patch(

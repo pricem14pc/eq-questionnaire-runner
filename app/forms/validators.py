@@ -54,8 +54,8 @@ class NumberCheck:
                     numbers.get_group_symbol(flask_babel.get_locale()), ""
                 )
             )
-        except (ValueError, TypeError, InvalidOperation, AttributeError):
-            raise validators.StopValidation(self.message)
+        except (ValueError, TypeError, InvalidOperation, AttributeError) as exc:
+            raise validators.StopValidation(self.message) from exc
 
         if "e" in field.raw_data[0].lower():
             raise validators.StopValidation(self.message)
@@ -260,8 +260,8 @@ class DateCheck:
                 datetime.strptime(form.data, "%Y-%m").replace(tzinfo=timezone.utc)
             else:
                 datetime.strptime(form.data, "%Y").replace(tzinfo=timezone.utc)
-        except ValueError:
-            raise validators.StopValidation(self.message)
+        except ValueError as exc:
+            raise validators.StopValidation(self.message) from exc
 
 
 class SingleDatePeriodCheck:
@@ -402,19 +402,19 @@ class SumCheck:
         self,
         form: QuestionnaireForm,
         conditions: List[str],
-        total: Decimal,
-        target_total: Union[Decimal, int],
+        total: Union[Decimal, int],
+        target_total: Union[Decimal, float],
     ) -> None:
         if len(conditions) > 1:
             try:
                 conditions.remove("equals")
-            except ValueError:
+            except ValueError as exc:
                 raise Exception(
                     "There are multiple conditions, but equals is not one of them. "
                     "We only support <= and >="
-                )
+                ) from exc
 
-            condition = "{} or equals".format(conditions[0])
+            condition = f"{conditions[0]} or equals"
         else:
             condition = conditions[0]
 
@@ -428,7 +428,9 @@ class SumCheck:
 
     @staticmethod
     def _is_valid(
-        condition: str, total: Decimal, target_total: Union[Decimal, int]
+        condition: str,
+        total: Union[Decimal, float],
+        target_total: Union[Decimal, float],
     ) -> tuple[bool, str]:
         if condition == "equals":
             return total == target_total, "TOTAL_SUM_NOT_EQUALS"
@@ -443,11 +445,13 @@ class SumCheck:
 
 
 def format_playback_value(
-    value: Union[int, Decimal], currency: Optional[str] = None
+    value: Union[float, Decimal], currency: Optional[str] = None
 ) -> str:
     if currency:
         return get_formatted_currency(value, currency)
-    return format_number(value)
+
+    formatted_number: str = format_number(value)
+    return formatted_number
 
 
 def format_message_with_title(error_message: str, question_title: str) -> str:
@@ -500,8 +504,8 @@ class EmailTLDCheck:
             hostname = match.group(1)
             try:
                 hostname = hostname.encode("idna").decode("ascii")
-            except UnicodeError:
-                raise validators.StopValidation(self.message)
+            except UnicodeError as exc:
+                raise validators.StopValidation(self.message) from exc
             parts = hostname.split(".")
             if len(parts) > 1 and not tld_part_regex.match(parts[-1]):
                 raise validators.StopValidation(self.message)

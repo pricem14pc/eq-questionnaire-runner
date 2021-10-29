@@ -1,5 +1,8 @@
 import unittest
+from datetime import datetime, timezone
 from decimal import Decimal
+
+import pytest
 
 from app.questionnaire.placeholder_transforms import PlaceholderTransforms
 
@@ -100,8 +103,18 @@ class TestPlaceholderParser(unittest.TestCase):
             == "1 day"
         )
         assert PlaceholderTransforms.calculate_date_difference("now", "now") == "0 days"
-        with self.assertRaises(ValueError):
-            PlaceholderTransforms.calculate_date_difference("2018", "now")
+        assert (
+            PlaceholderTransforms.calculate_date_difference(
+                "2021-07-29T10:53:41.511833+00:00", "2021-09-29T10:53:41.511833+00:00"
+            )
+            == "2 months"
+        )
+        assert (
+            PlaceholderTransforms.calculate_date_difference(
+                "2021-09-28", "2021-09-29T10:53:41.511833+00:00"
+            )
+            == "1 day"
+        )
 
     def test_concatenate_list(self):
         list_to_concatenate = ["Milk", "Eggs", "Flour", "Water"]
@@ -235,14 +248,12 @@ class TestPlaceholderParser(unittest.TestCase):
         )
 
     def test_email_link(self):
-
         assert (
             self.transforms.email_link("test@email.com")
             == '<a href="mailto:test@email.com">test@email.com</a>'
         )
 
     def test_email_link_with_subject(self):
-
         assert (
             self.transforms.email_link("test@email.com", "test subject")
             == '<a href="mailto:test@email.com?subject=test%20subject">test@email.com</a>'
@@ -256,7 +267,6 @@ class TestPlaceholderParser(unittest.TestCase):
         )
 
     def test_telephone_number_link(self):
-
         assert (
             self.transforms.telephone_number_link("012345 67890")
             == '<a href="tel:01234567890">012345 67890</a>'
@@ -272,3 +282,131 @@ class TestPlaceholderParser(unittest.TestCase):
         )
         assert self.transforms.list_item_count([]) == 0
         assert self.transforms.list_item_count(None) == 0
+
+    @staticmethod
+    def test_parse_date():
+        assert PlaceholderTransforms.parse_date("2021-10") == datetime.strptime(
+            "2021-10", "%Y-%m"
+        ).replace(tzinfo=timezone.utc)
+        assert PlaceholderTransforms.parse_date("2021-10-29") == datetime.strptime(
+            "2021-10-29", "%Y-%m-%d"
+        ).replace(tzinfo=timezone.utc)
+        assert PlaceholderTransforms.parse_date(
+            "2021-10-29T10:53:41.511833+00:00"
+        ) == datetime.strptime(
+            "2021-10-29T10:53:41.511833+00:00", "%Y-%m-%dT%H:%M:%S.%f%z"
+        ).replace(
+            tzinfo=timezone.utc
+        )
+
+    def test_parse_date_exception(self):
+        with self.assertRaises(ValueError):
+            PlaceholderTransforms.parse_date("2021--10")
+            PlaceholderTransforms.parse_date("2021-10-229")
+            PlaceholderTransforms.parse_date("2021-10-29T10:53:41.511833+00:0000")
+
+
+@pytest.mark.parametrize(
+    "ref_date,weeks_prior,day_range,first_day_of_week,expected",
+    [
+        # All weekdays as reference date
+        ("2021-09-26", -1, 7, "MONDAY", ("2021-09-13", "2021-09-19")),
+        ("2021-09-27", -1, 7, "MONDAY", ("2021-09-20", "2021-09-26")),
+        ("2021-09-28", -1, 7, "MONDAY", ("2021-09-20", "2021-09-26")),
+        ("2021-09-29", -1, 7, "MONDAY", ("2021-09-20", "2021-09-26")),
+        ("2021-09-30", -1, 7, "MONDAY", ("2021-09-20", "2021-09-26")),
+        ("2021-10-01", -1, 7, "MONDAY", ("2021-09-20", "2021-09-26")),
+        ("2021-10-02", -1, 7, "MONDAY", ("2021-09-20", "2021-09-26")),
+        ("2021-10-03", -1, 7, "MONDAY", ("2021-09-20", "2021-09-26")),
+        ("2021-10-04", -1, 7, "MONDAY", ("2021-09-27", "2021-10-03")),
+        # All weekdays as reference, first day of the week is midweek
+        ("2021-09-22", -1, 7, "THURSDAY", ("2021-09-09", "2021-09-15")),
+        ("2021-09-23", -1, 7, "THURSDAY", ("2021-09-16", "2021-09-22")),
+        ("2021-09-24", -1, 7, "THURSDAY", ("2021-09-16", "2021-09-22")),
+        ("2021-09-25", -1, 7, "THURSDAY", ("2021-09-16", "2021-09-22")),
+        ("2021-09-26", -1, 7, "THURSDAY", ("2021-09-16", "2021-09-22")),
+        ("2021-09-27", -1, 7, "THURSDAY", ("2021-09-16", "2021-09-22")),
+        ("2021-09-28", -1, 7, "THURSDAY", ("2021-09-16", "2021-09-22")),
+        ("2021-09-29", -1, 7, "THURSDAY", ("2021-09-16", "2021-09-22")),
+        ("2021-09-30", -1, 7, "THURSDAY", ("2021-09-23", "2021-09-29")),
+        # All weekdays equal to first day of the week
+        ("2021-09-27", -1, 7, "MONDAY", ("2021-09-20", "2021-09-26")),
+        ("2021-09-28", -1, 7, "TUESDAY", ("2021-09-21", "2021-09-27")),
+        ("2021-09-29", -1, 7, "WEDNESDAY", ("2021-09-22", "2021-09-28")),
+        ("2021-09-30", -1, 7, "THURSDAY", ("2021-09-23", "2021-09-29")),
+        ("2021-10-01", -1, 7, "FRIDAY", ("2021-09-24", "2021-09-30")),
+        ("2021-10-02", -1, 7, "SATURDAY", ("2021-09-25", "2021-10-01")),
+        ("2021-10-03", -1, 7, "SUNDAY", ("2021-09-26", "2021-10-02")),
+        # All weekdays equal to last day of the week
+        ("2021-09-26", -1, 7, "MONDAY", ("2021-09-13", "2021-09-19")),
+        ("2021-09-27", -1, 7, "TUESDAY", ("2021-09-14", "2021-09-20")),
+        ("2021-09-28", -1, 7, "WEDNESDAY", ("2021-09-15", "2021-09-21")),
+        ("2021-09-29", -1, 7, "THURSDAY", ("2021-09-16", "2021-09-22")),
+        ("2021-09-30", -1, 7, "FRIDAY", ("2021-09-17", "2021-09-23")),
+        ("2021-10-01", -1, 7, "SATURDAY", ("2021-09-18", "2021-09-24")),
+        ("2021-10-02", -1, 7, "SUNDAY", ("2021-09-19", "2021-09-25")),
+        # Varying weeks offset
+        ("2021-09-27", 0, 7, "MONDAY", ("2021-09-27", "2021-10-03")),
+        ("2021-09-27", -1, 7, "MONDAY", ("2021-09-20", "2021-09-26")),
+        ("2021-09-27", -2, 7, "MONDAY", ("2021-09-13", "2021-09-19")),
+        ("2021-09-27", -4, 7, "MONDAY", ("2021-08-30", "2021-09-05")),
+        ("2021-09-27", -52, 7, "MONDAY", ("2020-09-28", "2020-10-04")),
+        ("2021-09-27", 1, 7, "MONDAY", ("2021-10-04", "2021-10-10")),
+        ("2021-09-27", 2, 7, "MONDAY", ("2021-10-11", "2021-10-17")),
+        ("2021-09-27", 4, 7, "MONDAY", ("2021-10-25", "2021-10-31")),
+        ("2021-09-27", 52, 7, "MONDAY", ("2022-09-26", "2022-10-02")),
+        # Varying days offset
+        ("2021-09-27", 0, 1, "MONDAY", ("2021-09-27", "2021-09-27")),
+        ("2021-09-27", 0, 10, "MONDAY", ("2021-09-27", "2021-10-06")),
+        ("2021-09-27", 0, 14, "MONDAY", ("2021-09-27", "2021-10-10")),
+    ],
+)
+def test_date_range_bounds_all_weekdays_as_reference_date(
+    placeholder_transform, ref_date, weeks_prior, day_range, first_day_of_week, expected
+):
+    actual = placeholder_transform.date_range_bounds(
+        ref_date, weeks_prior, day_range, first_day_of_week
+    )
+    assert actual == expected
+
+
+def test_date_range_bounds_kwarg_default_monday(placeholder_transform):
+    expected = ("2021-09-13", "2021-09-19")
+    actual = placeholder_transform.date_range_bounds("2021-09-26", -1, 7)
+    assert actual == expected
+
+
+def test_date_range_bounds_negative_range_raises_ValueError(placeholder_transform):
+    with pytest.raises(ValueError):
+        placeholder_transform.date_range_bounds("2021-09-27", 0, -7)
+
+
+def test_date_range_bounds_bad_day_name_raises_KeyError(placeholder_transform):
+    with pytest.raises(KeyError):
+        placeholder_transform.date_range_bounds("2021-09-27", 0, 7, "RANDOMDAY")
+
+
+@pytest.mark.parametrize(
+    "date_range,expected",
+    [
+        (
+            ("2021-09-01", "2021-09-15"),
+            "Wednesday 1 to Wednesday 15 September 2021",
+        ),
+        (
+            ("2021-09-15", "2021-10-15"),
+            "Wednesday 15 September to Friday 15 October 2021",
+        ),
+        (
+            ("2021-09-15", "2022-09-15"),
+            "Wednesday 15 September 2021 to Thursday 15 September 2022",
+        ),
+        (
+            ("2021-09-15", "2022-10-15"),
+            "Wednesday 15 September 2021 to Saturday 15 October 2022",
+        ),
+    ],
+)
+def test_format_date_range(placeholder_transform, date_range, expected):
+    actual = placeholder_transform.format_date_range(date_range)
+    assert actual == expected

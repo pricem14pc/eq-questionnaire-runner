@@ -118,6 +118,8 @@ class IndividualResponseHandler:
 
         self._metadata = self._questionnaire_store.metadata
 
+        self._response_metadata = self._questionnaire_store.response_metadata
+
         if not self._is_location_valid():
             raise NotFound
 
@@ -134,7 +136,7 @@ class IndividualResponseHandler:
     def page_title(self, page_title):
         if self._list_item_id:
             page_title += ": " + lazy_gettext(
-                "Person {list_item_position}".format(
+                "Person {list_item_position}".format(  # pylint: disable=consider-using-f-string
                     list_item_position=self._list_item_position
                 )
             )
@@ -164,6 +166,7 @@ class IndividualResponseHandler:
             answer_store=self._questionnaire_store.answer_store,
             list_store=self._questionnaire_store.list_store,
             metadata=self._questionnaire_store.metadata,
+            response_metadata=self._questionnaire_store.response_metadata,
             schema=self._schema,
             location=None,
         )
@@ -176,6 +179,7 @@ class IndividualResponseHandler:
             list_store=self._questionnaire_store.list_store,
             progress_store=self._questionnaire_store.progress_store,
             metadata=self._questionnaire_store.metadata,
+            response_metadata=self._questionnaire_store.response_metadata,
         )
 
     @cached_property
@@ -190,6 +194,7 @@ class IndividualResponseHandler:
             answer_store=self._questionnaire_store.answer_store,
             list_store=self._questionnaire_store.list_store,
             metadata=self._questionnaire_store.metadata,
+            response_metadata=self._questionnaire_store.response_metadata,
             data=self._answers,
             form_data=self._form_data,
         )
@@ -209,8 +214,8 @@ class IndividualResponseHandler:
                 message=fulfilment_request.message,
                 fulfilment_request_transaction_id=fulfilment_request.transaction_id,
             )
-        except PublicationFailed:
-            raise IndividualResponseFulfilmentRequestPublicationFailed
+        except PublicationFailed as exc:
+            raise IndividualResponseFulfilmentRequestPublicationFailed from exc
 
     def _check_individual_response_count(self):
         if (
@@ -297,6 +302,10 @@ class IndividualResponseHandler:
         self._questionnaire_store.progress_store.update_section_status(
             status, self.individual_section_id, self._list_item_id
         )
+
+    @property
+    def block_definition(self):  # pragma: no cover
+        raise NotImplementedError
 
 
 class IndividualResponseHowHandler(IndividualResponseHandler):
@@ -833,8 +842,8 @@ class IndividualResponseTextConfirmHandler(IndividualResponseHandler):
             self.mobile_number = url_safe_serializer().loads(
                 request_args["mobile_number"]
             )
-        except BadSignature:
-            raise BadRequest
+        except BadSignature as exc:
+            raise BadRequest from exc
 
         super().__init__(
             schema,

@@ -14,11 +14,13 @@ class SubmitContextTestCase(AppContextTestCase):
         super().setUp()
         self.language = "en"
         self.metadata = {}
+        self.response_metadata = {}
         self.answer_store = AnswerStore()
         self.list_store = ListStore()
         self.progress_store = ProgressStore()
 
 
+# pylint: disable=attribute-defined-outside-init
 class TestSubmitContext(SubmitContextTestCase):
     @patch("app.jinja_filters.flask_babel.get_locale", Mock(return_value="en_GB"))
     def test_default_submission_content(self):
@@ -33,6 +35,7 @@ class TestSubmitContext(SubmitContextTestCase):
             self.list_store,
             self.progress_store,
             self.metadata,
+            self.response_metadata,
         )
 
         context = submit_questionnaire_context()
@@ -53,6 +56,7 @@ class TestSubmitContext(SubmitContextTestCase):
             self.list_store,
             self.progress_store,
             self.metadata,
+            self.response_metadata,
         )
 
         context = submit_questionnaire_context()
@@ -76,6 +80,7 @@ class TestSubmitContext(SubmitContextTestCase):
             self.list_store,
             self.progress_store,
             self.metadata,
+            self.response_metadata,
         )
 
         context = submit_questionnaire_context()
@@ -93,6 +98,7 @@ class TestSubmitContextWithSummary(SubmitContextTestCase, SummaryContextTestCase
             self.list_store,
             self.progress_store,
             self.metadata,
+            self.response_metadata,
         )
 
         context = submit_questionnaire_context()

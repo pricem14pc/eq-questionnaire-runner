@@ -18,6 +18,7 @@ def requires_schema(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         session = get_session_store()
+        # pylint: disable=assigning-non-slot
         g.schema = load_schema_from_session_data(session.session_data)
         result = func(g.schema, *args, **kwargs)
         return result
@@ -47,6 +48,7 @@ def dump_routing(schema, questionnaire_store):
         questionnaire_store.list_store,
         questionnaire_store.progress_store,
         questionnaire_store.metadata,
+        questionnaire_store.response_metadata,
     )
 
     response = [
@@ -73,6 +75,7 @@ def dump_submission(schema, questionnaire_store):
         questionnaire_store.list_store,
         questionnaire_store.progress_store,
         questionnaire_store.metadata,
+        questionnaire_store.response_metadata,
     )
 
     routing_path = router.full_routing_path()

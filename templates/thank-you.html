@@ -4,12 +4,26 @@
 
 {% set page_title = _("We’ve received your answers") %}
 {% set hide_sign_out_button = content.hide_sign_out_button %}
-
+{% set breadcrumbs = {
+  "ariaLabel": 'Back to surveys',
+  "itemsList": [
+    {
+      "url": account_service_surveys_url,
+      "id": "back-to-surveys",
+      "text": _("Back to surveys"),
+      "attributes": {
+        "data-ga": 'click',
+        "data-ga-category": 'Navigation',
+        "data-ga-action": 'Back to surveys link click'
+      }
+    }
+  ]
+} %}
 {% block main %}
 
   {% call onsPanel({
     "type": "success",
-    "icon": "check",
+    "iconType": "check",
     "iconSize": "xl",
     "classes": "ons-u-mb-m"
     })
@@ -50,6 +64,10 @@
         {{ _("For security, you can no longer view your answers") }}
       {% endcall %}
     {% endif %}
+  {% endif %}
+
+  {% if content.show_feedback_call_to_action %}
+    {% include 'partials/feedback-call-to-action.html' %}
   {% endif %}
 
 {% endblock %}

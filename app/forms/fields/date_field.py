@@ -16,14 +16,12 @@ def get_form_class(validators):
 
         @cached_property
         def data(self):
+            # pylint: disable=no-member
+            # wtforms Form parents are not discoverable in the 2.3.3 implementation
             data = super().data
 
             try:
-                return "{year:04d}-{month:02d}-{day:02d}".format(
-                    year=int(data["year"]),
-                    month=int(data["month"]),
-                    day=int(data["day"]),
-                )
+                return f'{int(data["year"]):04d}-{int(data["month"]):02d}-{int(data["day"]):02d}'
             except (TypeError, ValueError):
                 return None
 

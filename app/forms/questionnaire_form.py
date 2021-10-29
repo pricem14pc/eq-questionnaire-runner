@@ -39,6 +39,7 @@ class QuestionnaireForm(FlaskForm):
         answer_store: AnswerStore,
         list_store: ListStore,
         metadata: dict[str, Any],
+        response_metadata: Mapping[str, Any],
         location: Union[None, Location, RelationshipLocation],
         **kwargs: Union[MultiDict[str, Any], Mapping[str, Any], None],
     ):
@@ -47,6 +48,7 @@ class QuestionnaireForm(FlaskForm):
         self.answer_store = answer_store
         self.list_store = list_store
         self.metadata = metadata
+        self.response_metadata = response_metadata
         self.location = location
         self.question_errors: dict[str, str] = {}
         self.options_with_detail_answer: dict = {}
@@ -203,9 +205,8 @@ class QuestionnaireForm(FlaskForm):
 
         # Exception to be raised if range available is smaller than minimum range allowed
         if period_min and period_range < min_offset:
-            exception = "The schema has invalid period_limits for {}".format(
-                question_id
-            )
+            exception = f"The schema has invalid period_limits for {question_id}"
+
             raise Exception(exception)
 
     @staticmethod
@@ -214,9 +215,7 @@ class QuestionnaireForm(FlaskForm):
     ) -> None:
         # Exception to be raised if range from answers are smaller than
         # minimum or larger than maximum period_limits
-        exception = "The schema has invalid date answer limits for {}".format(
-            question_id
-        )
+        exception = f"The schema has invalid date answer limits for {question_id}"
 
         if period_range < timedelta(0):
             raise Exception(exception)
@@ -289,6 +288,7 @@ class QuestionnaireForm(FlaskForm):
             answer_store=self.answer_store,
             list_store=self.list_store,
             metadata=self.metadata,
+            response_metadata=self.response_metadata,
             schema=self.schema,
             location=self.location,
             list_item_id=list_item_id,
@@ -354,7 +354,7 @@ class QuestionnaireForm(FlaskForm):
         if calculation_type == "sum":
             return sum
 
-        raise Exception("Invalid calculation_type: {}".format(calculation_type))
+        raise Exception(f"Invalid calculation_type: {calculation_type}")
 
     def _get_formatted_calculation_values(
         self, answers_list: Sequence[str]
@@ -372,6 +372,8 @@ class QuestionnaireForm(FlaskForm):
         return result
 
     def answers_all_valid(self, answer_id_list: Sequence[str]) -> bool:
+        # pylint: disable=no-member
+        # wtforms Form parents are not discoverable in the 2.3.3 implementation
         return not set(answer_id_list) & set(self.errors)
 
     def map_errors(self) -> list[tuple[str, str]]:
@@ -384,7 +386,8 @@ class QuestionnaireForm(FlaskForm):
                     self.question_errors[self.question["id"]],
                 )
             ]
-
+        # pylint: disable=no-member
+        # wtforms Form parents are not discoverable in the 2.3.3 implementation
         for answer in self.question["answers"]:
             if answer["id"] in self.errors:
                 ordered_errors += map_subfield_errors(self.errors, answer["id"])
@@ -423,6 +426,7 @@ def get_answer_fields(
     answer_store: AnswerStore,
     list_store: ListStore,
     metadata: dict[str, Any],
+    response_metadata: Mapping[str, Any],
     location: Union[Location, RelationshipLocation, None],
 ) -> dict[str, FieldHandler]:
     list_item_id = location.list_item_id if location else None
@@ -434,6 +438,7 @@ def get_answer_fields(
         location=location,
         list_item_id=list_item_id,
         escape_answer_values=False,
+        response_metadata=response_metadata,
     )
 
     answer_fields = {}
@@ -498,8 +503,8 @@ def map_detail_answer_errors(
     return detail_answer_errors
 
 
-def _get_error_id(id: str) -> str:
-    return f"{id}-error"
+def _get_error_id(id_: str) -> str:
+    return f"{id_}-error"
 
 
 def _clear_detail_answer_field(
@@ -525,6 +530,7 @@ def generate_form(
     answer_store: AnswerStore,
     list_store: ListStore,
     metadata: dict[str, Any],
+    response_metadata: Mapping[str, Any],
     location: Union[None, Location, RelationshipLocation] = None,
     data: Optional[dict[str, Any]] = None,
     form_data: Optional[MultiDict[str, Any]] = None,
@@ -543,6 +549,7 @@ def generate_form(
         answer_store,
         list_store,
         metadata,
+        response_metadata,
         location,
     )
 
@@ -555,6 +562,7 @@ def generate_form(
         answer_store,
         list_store,
         metadata,
+        response_metadata,
         location,
         data=data,
         formdata=form_data,

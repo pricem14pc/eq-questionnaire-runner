@@ -11,6 +11,16 @@ from flask_babel import ngettext
 from app.questionnaire.routing.operations import evaluate_count
 from app.settings import DEFAULT_LOCALE
 
+DAYS_OF_WEEK = {
+    "MONDAY": 0,
+    "TUESDAY": 1,
+    "WEDNESDAY": 2,
+    "THURSDAY": 3,
+    "FRIDAY": 4,
+    "SATURDAY": 5,
+    "SUNDAY": 6,
+}
+
 
 class PlaceholderTransforms:
     """
@@ -22,7 +32,6 @@ class PlaceholderTransforms:
         self.locale = DEFAULT_LOCALE if language in ["en", "eo"] else language
 
     input_date_format = "%Y-%m-%d"
-    input_date_format_month_year_only = "%Y-%m"
 
     def format_currency(self, number: int = None, currency: str = "GBP") -> str:
         formatted_currency: str = format_currency(number, currency, locale=self.locale)
@@ -139,26 +148,102 @@ class PlaceholderTransforms:
         )
         return day_string.format(number_of_days=time.days)
 
+    def date_range_bounds(
+        self,
+        reference_date: str,
+        offset_full_weeks: int,
+        days_in_range: int,
+        first_day_of_week: str = "MONDAY",
+    ) -> tuple[str, str]:
+        """Generate a start and end date for a date range given a reference date,
+        weeks prior and number of days in range.
+
+        :param reference_date: The date to reference the date range from, can be YYYY-MM-DD, YY-MM or 'now'.
+        :type reference_date: datetime
+        :param offset_full_weeks: Number of full weeks to offset from the reference date to start the date range.
+        :type offset_full_weeks: int
+        :param days_in_range: Number of days in the range, including the start date, must be a positive integer.
+        :type days_in_range: int
+        :param first_day_of_week: Which day of the week should be considered the first (default 'MONDAY').
+            This is the day of the week which is selected as the start of the range.
+        :type first_day_of_week: str
+        :return: The start and end datetime objects of the range.
+        :rtype: Tuple[datetime, datetime]
+        """
+        try:
+            first_day_of_week_idx = DAYS_OF_WEEK[first_day_of_week]
+        except KeyError as err:
+            raise KeyError(f"'{first_day_of_week}' is not a valid weekday") from err
+
+        if days_in_range < 1:
+            raise ValueError("'days_in_range' must be a positive integer")
+
+        reference_datetime = PlaceholderTransforms.parse_date(reference_date)
+
+        first_day_of_current_week = reference_datetime - relativedelta(
+            days=(reference_datetime.weekday() - first_day_of_week_idx) % 7
+        )
+        first_day_of_prior_full_week = first_day_of_current_week + relativedelta(
+            days=offset_full_weeks * 7
+        )
+        last_day_of_range = first_day_of_prior_full_week + relativedelta(
+            days=days_in_range - 1
+        )
+        return (
+            first_day_of_prior_full_week.strftime(self.input_date_format),
+            last_day_of_range.strftime(self.input_date_format),
+        )
+
+    def format_date_range(self, date_range: tuple[str, str]) -> str:
+        """Format a pair of dates as a string, clarifying differences in month or year.
+
+        E.g.
+            Monday 1 to Sunday 8 September 2021
+            Monday 29 September to Sunday 6 October 2021
+            Monday 29 December 2021 to Sunday 6 January 2022
+
+        :param date_range: Pair of date strings representing a date range.
+        :type date_range: tuple[str, str]
+        :return: String containing the date range as text.
+        :rtype: str
+        """
+        start_date_str, end_date_str = date_range
+        start_date, end_date = list(map(PlaceholderTransforms.parse_date, date_range))
+        start_date_format = "EEEE d"
+        end_date_format = "EEEE d MMMM y"
+
+        if start_date.year != end_date.year:
+            start_date_format += " MMMM y"
+        elif start_date.month != end_date.month:
+            start_date_format += " MMMM"
+
+        start_date_formatted = self.format_date(start_date_str, start_date_format)
+        end_date_formatted = self.format_date(end_date_str, end_date_format)
+
+        return f"{start_date_formatted} to {end_date_formatted}"
+
     @staticmethod
     def parse_date(date: str) -> datetime:
         """
         :param date: string representing a date
         :return: datetime of that date
 
-        Convert `date` from string into `datetime` object. `date` can be 'YYYY-MM-DD', 'YYYY-MM'
-        or 'now'. Note that in the shorthand YYYY-MM format, day_of_month is assumed to be 1.
+        Convert `date` from string into `datetime` object. `date` can be 'YYYY-MM-DD', 'YYYY-MM','now' or ISO 8601 format.
+        Note that in the shorthand YYYY-MM format, day_of_month is assumed to be 1.
         """
         if date == "now":
             return datetime.now(tz=timezone.utc)
 
-        try:
-            return datetime.strptime(
-                date, PlaceholderTransforms.input_date_format
-            ).replace(tzinfo=timezone.utc)
-        except ValueError:
-            return datetime.strptime(
-                date, PlaceholderTransforms.input_date_format_month_year_only
-            ).replace(tzinfo=timezone.utc)
+        date_formats = ["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m"]
+
+        for date_format in date_formats:
+            try:
+                return datetime.strptime(date, date_format).replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+        raise ValueError(
+            f"No valid date format for date '{date}', possible formats: {date_formats}"
+        )
 
     @staticmethod
     def add(lhs: Union[int, Decimal], rhs: Union[int, Decimal]) -> Union[int, Decimal]:

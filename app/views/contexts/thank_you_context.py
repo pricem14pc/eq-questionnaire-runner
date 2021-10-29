@@ -5,7 +5,7 @@ from flask import url_for
 from flask_babel import lazy_gettext
 
 from app.data_models.session_data import SessionData
-from app.globals import is_view_submitted_response_expired
+from app.globals import has_view_submitted_response_expired
 from app.questionnaire import QuestionnaireSchema
 from app.views.contexts.email_form_context import build_email_form_context
 from app.views.contexts.submission_metadata_context import (
@@ -20,7 +20,6 @@ def build_thank_you_context(
     survey_type: str,
     guidance_content: Optional[dict] = None,
 ) -> Mapping:
-
     if survey_type == "social":
         submission_text = lazy_gettext("Your answers have been submitted.")
     elif session_data.trad_as and session_data.ru_name:
@@ -46,12 +45,10 @@ def build_thank_you_context(
 
 
 def build_view_submitted_response_context(schema, submitted_at):
-    schema: Mapping = schema.get_post_submission()
-    enabled = schema.get("view_response", False)
-    view_submitted_response = {"enabled": enabled}
+    view_submitted_response = {"enabled": schema.is_view_submitted_response_enabled}
 
-    if enabled:
-        expired = is_view_submitted_response_expired(submitted_at)
+    if schema.is_view_submitted_response_enabled:
+        expired = has_view_submitted_response_expired(submitted_at)
         view_submitted_response["expired"] = expired
         if not expired:
             view_submitted_response["url"] = url_for(
@@ -63,7 +60,6 @@ def build_view_submitted_response_context(schema, submitted_at):
 def build_census_thank_you_context(
     session_data: SessionData, confirmation_email_form, form_type
 ) -> Mapping:
-
     context = {
         "display_address": session_data.display_address,
         "form_type": form_type,

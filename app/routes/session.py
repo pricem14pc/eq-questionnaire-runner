@@ -54,7 +54,7 @@ def login():
         runner_claims = validate_runner_claims(decrypted_token)
     except ValidationError as e:
         raise InvalidTokenException("Invalid runner claims") from e
-
+    # pylint: disable=assigning-non-slot
     g.schema = load_schema_from_metadata(runner_claims)
     schema_metadata = g.schema.json["metadata"]
 
@@ -118,7 +118,7 @@ def get_session_expired():
     if request.method == "GET":
         logout_user()
 
-    return render_template("errors/session-expired")
+    return render_template("errors/401")
 
 
 @session_blueprint.route("/sign-out", methods=["GET"])

@@ -27,7 +27,7 @@ KEYS_FOLDER = "./tests/jwt-test-keys"
 
 
 def get_file_contents(filename, trim=False):
-    with open(os.path.join(KEYS_FOLDER, filename), "r") as f:
+    with open(os.path.join(KEYS_FOLDER, filename), "r", encoding="utf-8") as f:
         data = f.read()
         if trim:
             data = data.rstrip("\r\n")
@@ -41,6 +41,7 @@ class IntegrationTestCase(unittest.TestCase):  # pylint: disable=too-many-public
         self.last_response = None
         self.last_csrf_token = None
         self.redirect_url = None
+        self.last_response_headers = None
 
         # Perform setup steps
         self._set_up_app()
@@ -240,9 +241,15 @@ class IntegrationTestCase(unittest.TestCase):  # pylint: disable=too-many-public
 
     def _cache_response(self, response):
         environ = response.request.environ
-        self.last_csrf_token = self._extract_csrf_token(response.get_data(True))
+
+        self.last_csrf_token = (
+            self._extract_csrf_token(response.get_data(True))
+            if response.mimetype == "text/html"
+            else None
+        )
         self.redirect_url = response.headers.get("Location")
         self.last_response = response
+        self.last_response_headers = dict(response.headers)
         self.last_url = environ["PATH_INFO"]
         if environ["QUERY_STRING"]:
             self.last_url += "?" + environ["QUERY_STRING"]
@@ -302,21 +309,21 @@ class IntegrationTestCase(unittest.TestCase):  # pylint: disable=too-many-public
 
     def assertInSelector(self, content, selector):
         data = self.getHtmlSoup().select(selector)
-        message = "\n{} not in \n{}".format(content, data)
+        message = f"\n{content} not in \n{data}"
 
         # intentionally not using assertIn to avoid duplicating the output message
         self.assertTrue(content in str(data), msg=message)
 
     def assertInSelectorCSS(self, content, *selectors, **kwargs):
         data = self.getHtmlSoup().find(*selectors, **kwargs)
-        message = "\n{} not in \n{}".format(content, data)
+        message = f"\n{content} not in \n{data}"
 
         # intentionally not using assertIn to avoid duplicating the output message
         self.assertTrue(content in str(data), msg=message)
 
     def assertNotInSelector(self, content, selector):
         data = self.getHtmlSoup().select(selector)
-        message = "\n{} in \n{}".format(content, data)
+        message = f"\n{content} in \n{data}"
 
         # intentionally not using assertIn to avoid duplicating the output message
         self.assertFalse(content in str(data), msg=message)
@@ -354,7 +361,7 @@ class IntegrationTestCase(unittest.TestCase):  # pylint: disable=too-many-public
 
     def assertStatusCode(self, status_code):
         if self.last_response is not None:
-            self.assertEqual(self.last_response.status_code, status_code)
+            self.assertEqual(status_code, self.last_response.status_code)
         else:
             self.fail("last_response is invalid")
 

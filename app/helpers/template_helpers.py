@@ -38,6 +38,7 @@ class ContextHelper:
         self._account_service_url = cookie_session.get(
             "account_service_url", self._survey_config.account_service_url
         )
+        self._account_service_surveys_url = f"{self._account_service_url}{self._survey_config.account_service_surveys_path}"
         self._account_service_log_out_url = cookie_session.get(
             "account_service_log_out_url"
         )
@@ -56,10 +57,12 @@ class ContextHelper:
         return {
             "account_service_url": self._account_service_url,
             "account_service_log_out_url": self._account_service_log_out_url,
+            "account_service_surveys_url": self._account_service_surveys_url,
             "contact_us_url": Link(
                 lazy_gettext("Contact us"),
                 f"{self._survey_config.base_url}/contact-us/",
             ).__dict__,
+            "thank_you_url": url_for("post_submission.get_thank_you"),
             "cookie_settings_url": self._cookie_settings_url,
             "page_header": self.page_header_context,
             "footer": self.footer_context,

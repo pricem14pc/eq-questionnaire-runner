@@ -255,7 +255,7 @@ def test_get_page_header_context_census_nisra(app: Flask):
         (
             SurveyConfig(),
             {
-                "url": "https://ons.gov.uk/contact-us/",
+                "url": "https://surveys.ons.gov.uk/contact-us/",
                 "text": "Contact us",
                 "target": "_blank",
             },
@@ -312,7 +312,7 @@ def test_contact_us_url_context(
     "survey_config,expected",
     [
         (SurveyConfig(), None),
-        (BusinessSurveyConfig(), "https://surveys.ons.gov.uk/surveys/todo"),
+        (BusinessSurveyConfig(), "https://surveys.ons.gov.uk/sign-in/logout"),
         (CensusSurveyConfig(), "https://census.gov.uk/en/start"),
         (WelshCensusSurveyConfig(), "https://cyfrifiad.gov.uk/en/start"),
         (CensusNISRASurveyConfig(), "https://census.gov.uk/ni"),
@@ -414,8 +414,8 @@ def test_correct_theme_in_context(app: Flask, theme: str, language: str, expecte
 @pytest.mark.parametrize(
     "theme,language,expected",
     [
-        ("default", "en", None),
-        ("business", "en", None),
+        ("default", "en", "ONS Business Surveys"),
+        ("business", "en", "ONS Business Surveys"),
         ("health", "en", None),
         ("social", "en", None),
         ("northernireland", "en", None),

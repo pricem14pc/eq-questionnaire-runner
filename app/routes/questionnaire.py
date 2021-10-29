@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Union
 
 import flask_babel
-from flask import Blueprint, g, redirect, request, url_for
+from flask import Blueprint, g, redirect, request, send_file
+from flask import session as cookie_session
+from flask import url_for
 from flask_login import current_user, login_required
 from itsdangerous import BadSignature
 from structlog import get_logger
@@ -28,6 +30,7 @@ from app.helpers.template_helpers import render_template
 from app.questionnaire import QuestionnaireSchema
 from app.questionnaire.location import InvalidLocationException
 from app.questionnaire.router import Router
+from app.submitter.previously_submitted_exception import PreviouslySubmittedException
 from app.utilities.schema import load_schema_from_session_data
 from app.views.contexts import HubContext
 from app.views.handlers.block_factory import get_block_handler
@@ -44,8 +47,10 @@ from app.views.handlers.submit_questionnaire import SubmitQuestionnaireHandler
 from app.views.handlers.thank_you import ThankYou
 from app.views.handlers.view_submitted_response import (
     ViewSubmittedResponse,
+    ViewSubmittedResponseExpired,
     ViewSubmittedResponseNotEnabled,
 )
+from app.views.handlers.view_submitted_response_pdf import ViewSubmittedResponsePDF
 
 logger = get_logger()
 
@@ -63,6 +68,11 @@ post_submission_blueprint = Blueprint(
 def before_questionnaire_request():
     if request.method == "OPTIONS":
         return None
+
+    if cookie_session.get("submitted"):
+        raise PreviouslySubmittedException(
+            "The Questionnaire has been previously submitted"
+        )
 
     metadata = get_metadata(current_user)
     if not metadata:
@@ -88,6 +98,7 @@ def before_questionnaire_request():
     handle_language()
 
     session_store = get_session_store()
+    # pylint: disable=assigning-non-slot
     g.schema = load_schema_from_session_data(session_store.session_data)
 
 
@@ -112,7 +123,7 @@ def before_post_submission_request():
 
     session_store = get_session_store()
     session_data = session_store.session_data
-
+    # pylint: disable=assigning-non-slot
     g.schema = load_schema_from_session_data(session_data)
 
     logger.bind(tx_id=session_data.tx_id, schema_name=session_data.schema_name)
@@ -132,6 +143,7 @@ def get_questionnaire(schema, questionnaire_store):
         questionnaire_store.list_store,
         questionnaire_store.progress_store,
         questionnaire_store.metadata,
+        questionnaire_store.response_metadata,
     )
 
     if not router.can_access_hub():
@@ -156,6 +168,7 @@ def get_questionnaire(schema, questionnaire_store):
         list_store=questionnaire_store.list_store,
         progress_store=questionnaire_store.progress_store,
         metadata=questionnaire_store.metadata,
+        response_metadata=questionnaire_store.response_metadata,
     )
     context = hub_context(
         survey_complete=router.is_questionnaire_complete,
@@ -178,8 +191,8 @@ def submit_questionnaire(
         submit_questionnaire_handler = SubmitQuestionnaireHandler(
             schema, questionnaire_store, flask_babel.get_locale().language
         )
-    except InvalidLocationException:
-        raise NotFound
+    except InvalidLocationException as exc:
+        raise NotFound from exc
 
     if not submit_questionnaire_handler.router.is_questionnaire_complete:
         return redirect(
@@ -214,8 +227,8 @@ def get_section(schema, questionnaire_store, section_id, list_item_id=None):
             list_item_id=list_item_id,
             language=flask_babel.get_locale().language,
         )
-    except InvalidLocationException:
-        raise NotFound
+    except InvalidLocationException as exc:
+        raise NotFound from exc
 
     if request.method != "POST":
         if section_handler.can_display_summary():
@@ -253,8 +266,8 @@ def block(schema, questionnaire_store, block_id, list_name=None, list_item_id=No
             request_args=request.args,
             form_data=request.form,
         )
-    except InvalidLocationException:
-        raise NotFound
+    except InvalidLocationException as exc:
+        raise NotFound from exc
 
     if "action[clear_radios]" in request.form:
         block_handler.clear_radio_answers()
@@ -309,8 +322,8 @@ def relationships(
             request_args=request.args,
             form_data=request.form,
         )
-    except InvalidLocationException:
-        raise NotFound
+    except InvalidLocationException as exc:
+        raise NotFound from exc
 
     if not list_name:
         if "last" in request.args:
@@ -353,6 +366,8 @@ def get_thank_you(schema, session_store, questionnaire_store):
                 )
             )
 
+        # pylint: disable=no-member
+        # wtforms Form parents are not discoverable in the 2.3.3 implementation
         logger.info(
             "email validation error",
             error_message=str(confirmation_email.form.errors["email"][0]),
@@ -384,13 +399,43 @@ def get_view_submitted_response(schema, questionnaire_store):
             flask_babel.get_locale().language,
         )
 
-    except ViewSubmittedResponseNotEnabled:
-        raise NotFound
+    except ViewSubmittedResponseNotEnabled as exc:
+        raise NotFound from exc
 
-    return render_template(
-        template="view-submitted-response",
-        content=view_submitted_response.get_context(),
-        page_title=view_submitted_response.get_page_title(),
+    return view_submitted_response.get_rendered_html()
+
+
+@post_submission_blueprint.route("download-pdf", methods=["GET"])
+@with_questionnaire_store
+@with_schema
+def get_view_submitted_response_pdf(
+    schema: QuestionnaireSchema, questionnaire_store: QuestionnaireStore
+) -> Response:
+    """
+    :param schema: The questionnaire schema object.
+    :type schema: QuestionnaireSchema
+    :param questionnaire_store: The questionnaire store object.
+    :type questionnaire_store: QuestionnaireStore
+    :return: A response object with the contents of a file to the client.
+    :rtype: Response
+    """
+
+    try:
+        view_submitted_response_pdf = ViewSubmittedResponsePDF(
+            schema,
+            questionnaire_store,
+            flask_babel.get_locale().language,
+        )
+    except ViewSubmittedResponseNotEnabled as exc:
+        raise NotFound from exc
+    except ViewSubmittedResponseExpired:
+        return redirect(url_for(".get_view_submitted_response"))
+
+    return send_file(
+        path_or_file=view_submitted_response_pdf.get_pdf(),
+        mimetype=view_submitted_response_pdf.mimetype,
+        as_attachment=True,
+        download_name=view_submitted_response_pdf.filename,
     )
 
 
@@ -414,6 +459,8 @@ def send_confirmation_email(session_store, schema):
                 )
             )
 
+        # pylint: disable=no-member
+        # wtforms Form parents are not discoverable in the 2.3.3 implementation
         logger.info(
             "email validation error",
             error_message=str(confirmation_email.form.errors["email"][0]),
@@ -464,8 +511,8 @@ def get_confirmation_email_sent(session_store, schema):
 
     try:
         email = url_safe_serializer().loads(request.args["email"])
-    except BadSignature:
-        raise BadRequest
+    except BadSignature as exc:
+        raise BadRequest from exc
 
     show_send_another_email_guidance = not ConfirmationEmail.is_limit_reached(
         session_store.session_data
@@ -498,8 +545,8 @@ def send_feedback(schema, session_store, questionnaire_store):
         feedback = Feedback(
             questionnaire_store, schema, session_store, form_data=request.form
         )
-    except FeedbackNotEnabled:
-        raise NotFound
+    except FeedbackNotEnabled as exc:
+        raise NotFound from exc
 
     if request.method == "POST" and feedback.form.validate():
         feedback.handle_post()

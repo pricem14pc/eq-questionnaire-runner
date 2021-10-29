@@ -8,6 +8,7 @@ from app.data_models.list_store import ListStore
 from app.questionnaire import QuestionnaireSchema
 from app.questionnaire.location import Location
 from app.questionnaire.placeholder_parser import PlaceholderParser
+from app.questionnaire.placeholder_transforms import PlaceholderTransforms
 
 
 @pytest.fixture
@@ -37,20 +38,9 @@ def parser(answer_store, location, mock_schema):
         answer_store=answer_store,
         list_store=ListStore(),
         metadata={},
+        response_metadata={},
         schema=mock_schema,
         location=location,
-    )
-
-
-@pytest.fixture
-def parser_with_list_item_id(answer_store, list_store, location):
-    return PlaceholderParser(
-        language="en",
-        answer_store=answer_store,
-        list_store=list_store,
-        metadata={},
-        location=location,
-        list_item_id="test-list-item-id",
     )
 
 
@@ -708,3 +698,8 @@ def mock_schema():
         )
     )
     return schema
+
+
+@pytest.fixture
+def placeholder_transform():
+    return PlaceholderTransforms(language="en")

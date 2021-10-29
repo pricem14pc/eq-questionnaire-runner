@@ -190,7 +190,6 @@ class TestPlaceholderRenderer(AppContextTestCase):
 
     def test_errors_on_invalid_json(self):
         renderer = get_placeholder_render()
-        renderer._answer_store = AnswerStore()
         with self.assertRaises(ValueError):
             dict_to_render = {"invalid": {"no": "placeholders", "in": "this"}}
             renderer.render_pointer(dict_to_render, "/invalid", list_item_id=None)
@@ -273,13 +272,18 @@ def test_renders_text_plural_from_metadata():
 
 
 def get_placeholder_render(
-    language="en", answer_store=AnswerStore(), list_store=ListStore(), metadata={}
+    language="en",
+    answer_store=AnswerStore(),
+    list_store=ListStore(),
+    metadata=None,
+    response_metadata=None,
 ):
     renderer = PlaceholderRenderer(
         language=language,
         answer_store=answer_store,
         list_store=list_store,
-        metadata=metadata,
+        metadata=metadata or {},
+        response_metadata=response_metadata or {},
         schema=Mock(),
     )
     return renderer
