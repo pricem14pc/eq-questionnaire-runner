@@ -14,10 +14,10 @@ from marshmallow import (
 )
 from structlog import get_logger
 
+from app.questionnaire.rules.utils import parse_iso_8601_datetime
 from app.utilities.schema import get_schema_name_from_params
 
 logger = get_logger()
-ISO_8601_DATETIME = "%Y-%m-%dT%H:%M:%S%z"
 
 
 class RegionCode(validate.Regexp):
@@ -100,10 +100,7 @@ class RunnerMetadataSchema(Schema, StripWhitespaceMixin):
     case_type = VALIDATORS["string"](required=False)  # type:ignore
     response_expires_at = VALIDATORS["iso_8601_date_string"](
         required=False,
-        validate=lambda x: datetime.strptime(x, ISO_8601_DATETIME).replace(
-            tzinfo=timezone.utc
-        )
-        > datetime.now(tz=timezone.utc),
+        validate=lambda x: parse_iso_8601_datetime(x) > datetime.now(tz=timezone.utc),
     )  # type:ignore
 
     # Either schema_name OR the three census parameters are required. Should be required after census.
